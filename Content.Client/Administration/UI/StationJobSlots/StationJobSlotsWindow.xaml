@@ -1,0 +1,45 @@
+<ui:FancyWindow xmlns="https://spacestation14.io"
+                xmlns:ui="clr-namespace:Content.Client.UserInterface.Controls"
+                Title="{Loc admin-station-job-slots-window-title}"
+                MinWidth="500"
+                MinHeight="400"
+                SetSize="560 650">
+    <BoxContainer Orientation="Vertical" Margin="8" SeparationOverride="8">
+        <BoxContainer Orientation="Horizontal" SeparationOverride="8">
+            <Label Text="{Loc admin-station-job-slots-station}" />
+            <OptionButton Name="StationSelector" HorizontalExpand="True" Filterable="True" Disabled="True" />
+        </BoxContainer>
+        <BoxContainer Orientation="Horizontal" SeparationOverride="8">
+            <OptionButton Name="AddJobSelector" Filterable="True" HideTriangle="True"
+                          ToolTip="{Loc admin-station-job-slots-add-tooltip}" Disabled="True" />
+            <Label Text="{Loc admin-station-job-slots-department}" />
+            <OptionButton Name="DepartmentSelector" HorizontalExpand="True" />
+        </BoxContainer>
+
+        <PanelContainer StyleClasses="PanelInsetDark" VerticalExpand="True">
+            <BoxContainer Orientation="Vertical" Margin="2">
+                <PanelContainer StyleClasses="PanelLight">
+                    <BoxContainer Name="HeaderLayout" HorizontalExpand="True">
+                        <BoxContainer Orientation="Horizontal" Margin="8 4" SeparationOverride="8" HorizontalExpand="True">
+                            <Label Text="{Loc admin-station-job-slots-job}" HorizontalExpand="True" StyleClasses="LabelKeyText" />
+                            <BoxContainer MinWidth="144" MaxWidth="144">
+                                <Label Text="{Loc admin-station-job-slots-slots}" HorizontalAlignment="Center"
+                                       HorizontalExpand="True" StyleClasses="LabelKeyText" />
+                            </BoxContainer>
+                            <BoxContainer MinWidth="56" MaxWidth="56">
+                                <Label Text="{Loc admin-station-job-slots-unlimited}" HorizontalAlignment="Center"
+                                       HorizontalExpand="True" StyleClasses="LabelKeyText" />
+                            </BoxContainer>
+                        </BoxContainer>
+                    </BoxContainer>
+                </PanelContainer>
+                <Label Name="EmptyState" Text="{Loc admin-station-job-slots-loading}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" VerticalExpand="True"
+                       StyleClasses="LabelWeak" />
+                <ScrollContainer Name="JobsScroll" VerticalExpand="True" Visible="False" HScrollEnabled="False">
+                    <BoxContainer Name="JobsContainer" Orientation="Vertical" SeparationOverride="1" />
+                </ScrollContainer>
+            </BoxContainer>
+        </PanelContainer>
+    </BoxContainer>
+</ui:FancyWindow>

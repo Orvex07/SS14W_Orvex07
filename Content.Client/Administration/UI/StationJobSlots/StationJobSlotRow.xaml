@@ -1,0 +1,18 @@
+<PanelContainer xmlns="https://spacestation14.io" MinHeight="32">
+    <BoxContainer Orientation="Horizontal" Margin="8 2" SeparationOverride="8">
+        <TextureRect Name="JobIcon" MinSize="24 24" MaxSize="24 24" Stretch="KeepAspectCentered"
+                     VerticalAlignment="Center" />
+        <Label Name="JobName" HorizontalExpand="True" ClipText="True" />
+        <BoxContainer Orientation="Horizontal" MinWidth="144" MaxWidth="144" SeparationOverride="2">
+            <Button Name="DecreaseButton" Text="{Loc admin-station-job-slots-decrease}"
+                    ToolTip="{Loc admin-station-job-slots-decrease-tooltip}" MinWidth="32" />
+            <PanelContainer StyleClasses="PanelDark" HorizontalExpand="True">
+                <Label Name="SlotCount" HorizontalAlignment="Center" />
+            </PanelContainer>
+            <Button Name="IncreaseButton" Text="{Loc admin-station-job-slots-increase}"
+                    ToolTip="{Loc admin-station-job-slots-increase-tooltip}" MinWidth="32" />
+        </BoxContainer>
+        <Button Name="UnlimitedButton" Text="{Loc admin-station-job-slots-unlimited}"
+                MinWidth="56" MaxWidth="56" ToggleMode="True" />
+    </BoxContainer>
+</PanelContainer>

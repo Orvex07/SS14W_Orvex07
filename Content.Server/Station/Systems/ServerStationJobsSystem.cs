@@ -27,6 +27,8 @@ public sealed partial class ServerStationJobsSystem : StationJobsSystem
     [Dependency] private IRobustRandom _random = default!;
     [Dependency] private ServerGameTicker _gameTicker = default!;
 
+    public event Action? JobsChanged;
+
     /// <inheritdoc/>
     public override void Initialize()
     {
@@ -57,6 +59,7 @@ public sealed partial class ServerStationJobsSystem : StationJobsSystem
             _cachedAvailableJobs = GenerateJobsAvailableEvent();
             RaiseNetworkEvent(_cachedAvailableJobs, Filter.Empty().AddPlayers(_player.Sessions));
             _availableJobsDirty = false;
+            JobsChanged?.Invoke();
         }
     }
 
