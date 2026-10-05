@@ -12,49 +12,46 @@ using Robust.Shared.Prototypes;
 
 namespace Content.Server.Administration.UI;
 
-public sealed partial class StationJobSlotsEui : BaseEui
+public sealed partial class StationJobSlotsEui(ServerStationJobsSystem stationJobs) : BaseEui
 {
-    [Dependency] private IAdminManager _adminManager = default!;
-    [Dependency] private IEntityManager _entityManager = default!;
-    [Dependency] private IPrototypeManager _prototypeManager = default!;
-    [Dependency] private IAdminLogManager _adminLogManager = default!;
+    [Dependency] private IAdminManager _admins = default!;
+    [Dependency] private IEntityManager _entities = default!;
+    [Dependency] private IPrototypeManager _prototypes = default!;
+    [Dependency] private IAdminLogManager _logs = default!;
 
-    private readonly ServerStationJobsSystem _stationJobs;
+    // Remember the count so turning off unlimited slots restores -> previous value
+    private readonly Dictionary<(EntityUid Station, ProtoId<JobPrototype> Job), int> _limitedSlots = [];
 
-    public StationJobSlotsEui()
-    {
-        _stationJobs = _entityManager.System<ServerStationJobsSystem>();
-    }
+    private bool CanEdit => _admins.HasAdminFlag(Player, AdminFlags.VarEdit);
 
     public override void Opened()
     {
         base.Opened();
-        _adminManager.OnPermsChanged += OnPermsChanged;
-        _stationJobs.JobsChanged += StateDirty;
+        _admins.OnPermsChanged += OnPermsChanged;
+        stationJobs.JobsChanged += StateDirty;
         StateDirty();
     }
 
     public override void Closed()
     {
-        _adminManager.OnPermsChanged -= OnPermsChanged;
-        _stationJobs.JobsChanged -= StateDirty;
+        _admins.OnPermsChanged -= OnPermsChanged;
+        stationJobs.JobsChanged -= StateDirty;
         base.Closed();
     }
 
     public override StationJobSlotsEuiState GetNewState()
     {
         var stations = new List<StationJobSlotsData>();
-        var query = _entityManager.EntityQueryEnumerator<StationJobsComponent>();
-        while (query.MoveNext(out var uid, out var jobs))
+        var query = _entities.EntityQueryEnumerator<StationJobsComponent, MetaDataComponent>();
+        while (query.MoveNext(out var uid, out var jobs, out var meta))
         {
-            stations.Add(new StationJobSlotsData(
-                _entityManager.GetNetEntity(uid),
-                _entityManager.GetComponent<MetaDataComponent>(uid).EntityName,
-                new Dictionary<ProtoId<JobPrototype>, int?>(_stationJobs.GetJobs(uid, jobs)),
-                _entityManager.TryGetComponent<StationDataComponent>(uid, out var data) ? data.JobWeights : null));
+            var slots = new Dictionary<ProtoId<JobPrototype>, int?>(stationJobs.GetJobs(uid, jobs));
+            var weights = _entities.TryGetComponent<StationDataComponent>(uid, out var data) ? data.JobWeights : null;
+            stations.Add(new StationJobSlotsData(_entities.GetNetEntity(uid), meta.EntityName, slots, weights));
         }
 
-        return new StationJobSlotsEuiState(stations.OrderBy(station => station.StationName, StringComparer.Ordinal).ToArray());
+        var sorted = stations.OrderBy(station => station.Name, StringComparer.CurrentCulture).ToArray();
+        return new StationJobSlotsEuiState(sorted);
     }
 
     public override void HandleMessage(EuiMessageBase msg)
@@ -63,71 +60,81 @@ public sealed partial class StationJobSlotsEui : BaseEui
         if (msg is not StationJobSlotsChangeMessage change)
             return;
 
-        if (!_adminManager.HasAdminFlag(Player, AdminFlags.VarEdit))
+        if (!CanEdit)
         {
             Close();
             return;
         }
 
         ChangeSlots(change);
-        // Refresh rejected requests too, including a locally toggled unlimited button.
+        // Also reset client's controls when a request is rejected
         StateDirty();
     }
 
     private void ChangeSlots(StationJobSlotsChangeMessage change)
     {
-        if (!_prototypeManager.HasIndex(change.Job) ||
-            !_entityManager.TryGetEntity(change.Station, out var station) ||
-            !_entityManager.TryGetComponent<StationJobsComponent>(station, out var stationJobs))
+        if (!_prototypes.HasIndex(change.Job) ||
+            !_entities.TryGetEntity(change.Station, out var station) ||
+            !_entities.TryGetComponent<StationJobsComponent>(station, out var jobs))
             return;
 
-        var exists = _stationJobs.TryGetJobSlot(station.Value, change.Job, out var current, stationJobs);
+        var key = (station.Value, change.Job);
+        var exists = stationJobs.TryGetJobSlot(station.Value, change.Job, out var current, jobs);
         int? updated;
         switch (change.Operation)
         {
             case StationJobSlotOperation.Add when !exists:
                 updated = 1;
                 break;
-            case StationJobSlotOperation.Increase when exists && current is >= 0 and < int.MaxValue:
+            case StationJobSlotOperation.Increase when current is >= 0 and < int.MaxValue:
                 updated = current + 1;
                 break;
-            case StationJobSlotOperation.Decrease when exists && current is > 0:
+            case StationJobSlotOperation.Decrease when current is > 0:
                 updated = current - 1;
                 break;
-            case StationJobSlotOperation.MakeUnlimited when exists && current != null:
+            case StationJobSlotOperation.MakeUnlimited when current is { } limited:
+                _limitedSlots[key] = limited;
                 updated = null;
                 break;
-            case StationJobSlotOperation.MakeLimited when exists && current == null:
-                updated = 0;
+            case StationJobSlotOperation.MakeLimited when exists && current is null:
+                updated = _limitedSlots.GetValueOrDefault(key);
                 break;
             default:
                 return;
         }
 
-        if (updated is { } slots)
+        if (updated is null)
         {
-            var total = (long) stationJobs.TotalJobs - (current ?? 0) + slots;
-            if (total > int.MaxValue)
-                return;
-
-            if (!_stationJobs.TrySetJobSlot(station.Value, change.Job, slots,
-                    createSlot: !exists, stationJobs: stationJobs))
-                return;
+            stationJobs.MakeJobUnlimited(station.Value, change.Job, jobs);
         }
         else
         {
-            _stationJobs.MakeJobUnlimited(station.Value, change.Job, stationJobs);
+            // Prevent the station's total slot count from overflowing.
+            var total = (long)jobs.TotalJobs - (current ?? 0) + updated.Value;
+            if (total > int.MaxValue)
+                return;
+
+            if (!stationJobs.TrySetJobSlot(station.Value,
+                    change.Job,
+                    updated.Value,
+                    createSlot: !exists,
+                    stationJobs: jobs))
+                return;
+
+            _limitedSlots.Remove(key);
         }
 
         var previous = exists ? current?.ToString() ?? "unlimited" : "absent";
-        _adminLogManager.Add(LogType.AdminCommands, LogImpact.Low,
-            $"{Player.Name} ({Player.UserId}) changed job {change.Job} on {_entityManager.ToPrettyString(station.Value)} " +
+
+        _logs.Add(LogType.AdminCommands,
+            LogImpact.Low, // mb medium
+            $"{Player} changed job {change.Job} on {station} " +
             $"using {change.Operation}: {previous} -> {updated?.ToString() ?? "unlimited"}");
     }
 
     private void OnPermsChanged(AdminPermsChangedEventArgs args)
     {
-        if (args.Player == Player && !_adminManager.HasAdminFlag(Player, AdminFlags.VarEdit))
+        if (args.Player == Player && !CanEdit)
             Close();
     }
 }

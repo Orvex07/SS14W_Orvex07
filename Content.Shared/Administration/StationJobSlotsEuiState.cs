@@ -5,6 +5,9 @@ using Robust.Shared.Serialization;
 
 namespace Content.Shared.Administration;
 
+/// <summary>
+/// Job slots for each station. Null counts mean unlimited slots.
+/// </summary>
 [Serializable, NetSerializable]
 public sealed class StationJobSlotsEuiState(StationJobSlotsData[] stations) : EuiStateBase
 {
@@ -14,14 +17,14 @@ public sealed class StationJobSlotsEuiState(StationJobSlotsData[] stations) : Eu
 [Serializable, NetSerializable]
 public sealed class StationJobSlotsData(
     NetEntity station,
-    string stationName,
-    Dictionary<ProtoId<JobPrototype>, int?> jobSlots,
-    ProtoId<JobWeightPrototype>? jobWeights = null)
+    string name,
+    Dictionary<ProtoId<JobPrototype>, int?> slots,
+    ProtoId<JobWeightPrototype>? weights = null)
 {
     public readonly NetEntity Station = station;
-    public readonly string StationName = stationName;
-    public readonly ProtoId<JobWeightPrototype>? JobWeights = jobWeights;
-    public readonly Dictionary<ProtoId<JobPrototype>, int?> JobSlots = jobSlots;
+    public readonly string Name = name;
+    public readonly Dictionary<ProtoId<JobPrototype>, int?> Slots = slots;
+    public readonly ProtoId<JobWeightPrototype>? Weights = weights;
 }
 
 [Serializable, NetSerializable]
@@ -30,8 +33,10 @@ public enum StationJobSlotOperation : byte
     Increase,
     Decrease,
     MakeUnlimited,
-    // Switching back from unlimited starts with no free slots.
+
+    // Restore the free-slot count saved by this EUI, or zero if none was saved....
     MakeLimited,
+
     // A newly added job starts with one free slot.
     Add,
 }

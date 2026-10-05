@@ -10,18 +10,13 @@ namespace Content.Client.Administration.UI.StationJobSlots;
 [UsedImplicitly]
 public sealed class StationJobSlotsEui : BaseEui
 {
-    private readonly StationJobSlotsWindow _window;
-
-    public StationJobSlotsEui()
-    {
-        _window = new StationJobSlotsWindow();
-        _window.OnClose += OnWindowClosed;
-        _window.OnSlotChangeRequested += OnSlotChangeRequested;
-    }
+    private readonly StationJobSlotsWindow _window = new();
 
     public override void Opened()
     {
         base.Opened();
+        _window.OnClose += OnWindowClosed;
+        _window.OnSlotChange += OnSlotChange;
         _window.OpenCentered();
     }
 
@@ -29,28 +24,19 @@ public sealed class StationJobSlotsEui : BaseEui
     {
         base.Closed();
         _window.OnClose -= OnWindowClosed;
-        _window.OnSlotChangeRequested -= OnSlotChangeRequested;
+        _window.OnSlotChange -= OnSlotChange;
         _window.Close();
     }
 
+    private void OnSlotChange(NetEntity station, ProtoId<JobPrototype> job, StationJobSlotOperation operation) =>
+        SendMessage(new StationJobSlotsChangeMessage(station, job, operation));
+
+    private void OnWindowClosed() =>
+        SendMessage(new CloseEuiMessage());
+
     public override void HandleState(EuiStateBase state)
     {
-        if (state is not StationJobSlotsEuiState slotsState)
-            return;
-
-        _window.UpdateStations(slotsState.Stations);
-    }
-
-    private void OnSlotChangeRequested(
-        NetEntity station,
-        ProtoId<JobPrototype> job,
-        StationJobSlotOperation operation)
-    {
-        SendMessage(new StationJobSlotsChangeMessage(station, job, operation));
-    }
-
-    private void OnWindowClosed()
-    {
-        SendMessage(new CloseEuiMessage());
+        if (state is StationJobSlotsEuiState slots)
+            _window.UpdateStations(slots.Stations);
     }
 }

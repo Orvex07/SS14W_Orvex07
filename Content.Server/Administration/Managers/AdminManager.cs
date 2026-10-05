@@ -337,6 +337,20 @@ namespace Content.Server.Administration.Managers
                     .Select(p => p.Key));
             }
 
+            // Include Toolshed commands so client can check their permissions
+            // when running commands or showing command buttons
+            foreach (var command in _toolshed.DefaultEnvironment.AllCommands())
+            {
+                var name = command.FullName();
+
+                // Legacy commands take precedence when both command systems use same name...
+                if (_consoleHost.AvailableCommands.ContainsKey(name) ||
+                    !_toolshedCommandPermissions.CanCommand(command.Cmd.Name, msg.Admin))
+                    continue;
+
+                commands.Add(name);
+            }
+
             msg.AvailableCommands = commands.ToArray();
 
             _netMgr.ServerSendMessage(msg, session.Channel);

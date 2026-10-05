@@ -16,7 +16,7 @@
             <cc:CommandButton Command="adminlogs" Text="{Loc admin-player-actions-window-admin-logs}"/>
             <cc:CommandButton Command="faxui" Text="{Loc admin-player-actions-window-admin-fax}"/>
             <cc:CommandButton Command="achatwindow" Text="{Loc admin-player-actions-window-admin-chat}"/>
-            <cc:CommandButton Command="stationjobslotsui" Text="{Loc admin-player-actions-window-station-job-slots}"/>
+            <cc:CommandButton Command="station_job_slots_ui" Text="{Loc admin-player-actions-window-station-job-slots}"/>
         </GridContainer>
     </BoxContainer>
 </Control>

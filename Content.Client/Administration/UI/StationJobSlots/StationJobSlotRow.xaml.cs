@@ -10,22 +10,46 @@ namespace Content.Client.Administration.UI.StationJobSlots;
 [GenerateTypedNameReferences]
 public sealed partial class StationJobSlotRow : PanelContainer
 {
-    public event Action<StationJobSlotOperation>? OnSlotChangeRequested;
-    private int? _freeSlots;
+    public event Action<StationJobSlotOperation>? OnSlotChange;
 
     public StationJobSlotRow()
     {
         RobustXamlLoader.Load(this);
-        DecreaseButton.OnPressed += _ => OnSlotChangeRequested?.Invoke(StationJobSlotOperation.Decrease);
-        IncreaseButton.OnPressed += _ => OnSlotChangeRequested?.Invoke(StationJobSlotOperation.Increase);
-        UnlimitedButton.OnPressed += _ => OnSlotChangeRequested?.Invoke(_freeSlots is null
-            ? StationJobSlotOperation.MakeLimited
-            : StationJobSlotOperation.MakeUnlimited);
+        DecreaseButton.OnPressed += _ => OnSlotChange?.Invoke(StationJobSlotOperation.Decrease);
+        IncreaseButton.OnPressed += _ => OnSlotChange?.Invoke(StationJobSlotOperation.Increase);
+
+        UnlimitedButton.OnToggled += args =>
+        {
+            UpdateUnlimitedStyle();
+            OnSlotChange?.Invoke(args.Pressed
+                ? StationJobSlotOperation.MakeUnlimited
+                : StationJobSlotOperation.MakeLimited);
+        };
     }
 
+    /// <summary>
+    /// Displays this row as a table header.
+    /// </summary>
+    public void SetHeader()
+    {
+        SetOnlyStyleClass(StyleClass.PanelLight);
+        JobIcon.Visible = false;
+        JobName.Text = Loc.GetString("admin-station-job-slots-job");
+        JobName.AddStyleClass(StyleClass.LabelKeyText);
+        SlotPanel.RemoveStyleClass(StyleClass.PanelDark);
+        SlotCount.Text = Loc.GetString("admin-station-job-slots-slots");
+        SlotCount.AddStyleClass(StyleClass.LabelKeyText);
+        DecreaseButton.Visible = false;
+        IncreaseButton.Visible = false;
+        UnlimitedButton.Visible = false;
+        UnlimitedHeading.Visible = true;
+    }
+
+    /// <summary>
+    /// Updates the job's name, icon, and slot count...
+    /// </summary>
     public void UpdateJob(string name, Texture? icon, int? slots, bool alternate)
     {
-        _freeSlots = slots;
         SetOnlyStyleClass(alternate ? StyleClass.PanelLight : StyleClass.PanelDark);
         JobName.Text = name;
         JobName.ToolTip = name;
@@ -34,7 +58,18 @@ public sealed partial class StationJobSlotRow : PanelContainer
         DecreaseButton.Disabled = slots is null or <= 0;
         IncreaseButton.Disabled = slots is null or int.MaxValue;
         UnlimitedButton.Pressed = slots is null;
-        UnlimitedButton.ToolTip = Loc.GetString(slots is null
+        UpdateUnlimitedStyle();
+    }
+
+    private void UpdateUnlimitedStyle()
+    {
+        if (UnlimitedButton.Pressed)
+            UnlimitedButton.AddStyleClass(StyleClass.Positive);
+
+        else
+            UnlimitedButton.RemoveStyleClass(StyleClass.Positive);
+
+        UnlimitedButton.ToolTip = Loc.GetString(UnlimitedButton.Pressed
             ? "admin-station-job-slots-limited-tooltip"
             : "admin-station-job-slots-unlimited-tooltip");
     }

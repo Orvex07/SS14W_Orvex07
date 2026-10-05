@@ -1,31 +1,26 @@
 using Content.Server.Administration.UI;
 using Content.Server.EUI;
+using Content.Server.Station.Systems;
 using Content.Shared.Administration;
-using Robust.Shared.Console;
+using Robust.Shared.Toolshed;
+using Robust.Shared.Toolshed.Errors;
 
 namespace Content.Server.Administration.Commands;
 
-[AdminCommand(AdminFlags.VarEdit)]
-public sealed partial class StationJobSlotsUiCommand : LocalizedEntityCommands
+[ToolshedCommand(Name = "station_job_slots_ui"), AdminCommand(AdminFlags.VarEdit)]
+public sealed partial class StationJobSlotsUiCommand : ToolshedCommand
 {
-    [Dependency] private EuiManager _euiManager = default!;
+    [Dependency] private EuiManager _eui = default!;
 
-    public override string Command => "stationjobslotsui";
-
-    public override void Execute(IConsoleShell shell, string argStr, string[] args)
+    [CommandImplementation]
+    public void Execute(IInvocationContext context)
     {
-        if (shell.Player is not { } player)
+        if (context.Session is not { } player)
         {
-            shell.WriteError(Loc.GetString("shell-cannot-run-command-from-server"));
+            context.ReportError(new NotForServerConsoleError());
             return;
         }
 
-        if (args.Length != 0)
-        {
-            shell.WriteError(Help);
-            return;
-        }
-
-        _euiManager.OpenEui(new StationJobSlotsEui(), player);
+        _eui.OpenEui(new StationJobSlotsEui(GetSys<ServerStationJobsSystem>()), player);
     }
 }

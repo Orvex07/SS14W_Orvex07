@@ -27,6 +27,9 @@ public sealed partial class ServerStationJobsSystem : StationJobsSystem
     [Dependency] private IRobustRandom _random = default!;
     [Dependency] private ServerGameTicker _gameTicker = default!;
 
+    /// <summary>
+    /// Raised when station job availability changes
+    /// </summary>
     public event Action? JobsChanged;
 
     /// <inheritdoc/>

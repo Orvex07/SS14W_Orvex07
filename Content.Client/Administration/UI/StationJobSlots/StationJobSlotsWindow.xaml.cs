@@ -1,4 +1,5 @@
 using System.Linq;
+using Content.Client.Stylesheets;
 using Content.Client.UserInterface.Controls;
 using Content.Shared.Administration;
 using Content.Shared.Roles;
@@ -15,191 +16,47 @@ public sealed partial class StationJobSlotsWindow : FancyWindow
     [Dependency] private IPrototypeManager _prototypes = default!;
     [Dependency] private IEntityManager _entities = default!;
 
-    public event Action<NetEntity, ProtoId<JobPrototype>, StationJobSlotOperation>? OnSlotChangeRequested;
+    public event Action<NetEntity, ProtoId<JobPrototype>, StationJobSlotOperation>? OnSlotChange;
 
     private StationJobSlotsData[] _stations = [];
-    private NetEntity? _selectedStation;
-    private ProtoId<DepartmentPrototype>? _selectedDepartment;
-    private readonly List<(NetEntity Station, string Name)> _stationOptions = [];
-    private ProtoId<DepartmentPrototype>[] _departments = [];
-    private ProtoId<JobPrototype>[] _visibleJobs = [];
+    private NetEntity? _station;
+    private ProtoId<DepartmentPrototype>? _department;
+    private (NetEntity Station, string Name)[] _stationOptions = [];
     private ProtoId<JobPrototype>[] _addableJobs = [];
-    private readonly Dictionary<ProtoId<JobPrototype>, StationJobSlotRow> _rows = [];
+    private readonly List<(ProtoId<JobPrototype> Job, StationJobSlotRow Control)> _rows = [];
 
     public StationJobSlotsWindow()
     {
         RobustXamlLoader.Load(this);
         IoCManager.InjectDependencies(this);
+        HeaderLayout.SetHeader();
+        DepartmentSelector.OptionStyleClasses.Add(StyleClass.ButtonOpenBoth);
 
         StationSelector.OnItemSelected += args =>
         {
             StationSelector.SelectId(args.Id);
-            _selectedStation = _stationOptions[args.Id].Station;
+            _station = _stationOptions[args.Id].Station;
             RefreshJobs();
         };
+
         DepartmentSelector.OnItemSelected += args =>
         {
             DepartmentSelector.SelectId(args.Id);
-            _selectedDepartment = args.Id == 0 ? null : (ProtoId<DepartmentPrototype>?) _departments[args.Id - 1];
+            _department = (ProtoId<DepartmentPrototype>?)DepartmentSelector.SelectedMetadata;
             RefreshJobs();
         };
+
         AddJobSelector.OnItemSelected += args =>
         {
-            if (_selectedStation is not { } station || args.Id == 0)
-                return;
-
-            var job = _addableJobs[args.Id - 1];
-            AddJobSelector.SelectId(0);
-            OnSlotChangeRequested?.Invoke(station, job, StationJobSlotOperation.Add);
+            var item = AddJobSelector.GetItemMetadata(AddJobSelector.GetIdx(args.Id));
+            if (_station is { } station && item is ProtoId<JobPrototype> job)
+                OnSlotChange?.Invoke(station, job, StationJobSlotOperation.Add);
         };
 
         JobsContainer.OnResized += UpdateHeaderMargin;
         JobsScroll.OnResized += UpdateHeaderMargin;
         RefreshDepartments();
         RefreshAddJobs([]);
-    }
-
-    private void UpdateHeaderMargin()
-    {
-        HeaderLayout.Margin = new Thickness(0, 0, Math.Max(0, JobsScroll.Width - JobsContainer.Width), 0);
-    }
-
-    public void UpdateStations(StationJobSlotsData[] stations)
-    {
-        _stations = stations;
-        RefreshStations();
-        RefreshJobs();
-    }
-
-    private void RefreshStations()
-    {
-        var stations = _stations.Select(station => (station.Station, station.StationName)).ToArray();
-        if (_stationOptions.SequenceEqual(stations) && StationSelector.ItemCount > 0)
-            return;
-
-        _stationOptions.Clear();
-        _stationOptions.AddRange(stations);
-        StationSelector.Clear();
-        StationSelector.Disabled = stations.Length == 0;
-        if (stations.Length == 0)
-        {
-            _selectedStation = null;
-            StationSelector.AddItem(Loc.GetString("admin-station-job-slots-no-stations"));
-            return;
-        }
-
-        for (var i = 0; i < stations.Length; i++)
-            StationSelector.AddItem(stations[i].StationName, i);
-
-        var selected = _stationOptions.FindIndex(station => station.Station == _selectedStation);
-        if (selected < 0)
-            selected = 0;
-        _selectedStation = _stationOptions[selected].Station;
-        StationSelector.SelectId(selected);
-    }
-
-    private void RefreshDepartments()
-    {
-        var departments = _prototypes.EnumeratePrototypes<DepartmentPrototype>()
-            .OrderBy(department => department, DepartmentUIComparer.Instance).ToArray();
-        _departments = departments.Select(department => (ProtoId<DepartmentPrototype>) department.ID).ToArray();
-        DepartmentSelector.Clear();
-        DepartmentSelector.AddItem(Loc.GetString("admin-station-job-slots-all-departments"), 0);
-        for (var i = 0; i < _departments.Length; i++)
-            DepartmentSelector.AddItem(Loc.GetString(departments[i].Name), i + 1);
-
-        var selected = Array.FindIndex(_departments, department => department == _selectedDepartment);
-        DepartmentSelector.SelectId(selected + 1);
-        if (selected < 0)
-            _selectedDepartment = null;
-    }
-
-    private void RefreshJobs()
-    {
-        var station = _stations.FirstOrDefault(station => station.Station == _selectedStation);
-        var jobs = station == null ? [] : GetSortedJobs(station.JobWeights);
-        var stationJobs = station == null
-            ? []
-            : jobs.Where(job => station.JobSlots.ContainsKey(job.ID)).ToArray();
-        var addableJobs = station == null
-            ? []
-            : jobs.Where(job => !station.JobSlots.ContainsKey(job.ID)).ToArray();
-
-        UpdateRows(stationJobs, station?.JobSlots ?? []);
-        RefreshAddJobs(addableJobs);
-        EmptyState.Text = Loc.GetString(station == null
-            ? "admin-station-job-slots-no-stations"
-            : "admin-station-job-slots-no-jobs");
-    }
-
-    private void UpdateRows(JobPrototype[] jobs, Dictionary<ProtoId<JobPrototype>, int?> slots)
-    {
-        var ids = jobs.Select(job => (ProtoId<JobPrototype>) job.ID).ToArray();
-
-        if (!_visibleJobs.SequenceEqual(ids))
-        {
-            _visibleJobs = ids;
-            JobsContainer.RemoveAllChildren();
-            _rows.Clear();
-            foreach (var id in ids)
-            {
-                var row = new StationJobSlotRow();
-                row.OnSlotChangeRequested += operation =>
-                {
-                    if (_selectedStation is { } station)
-                        OnSlotChangeRequested?.Invoke(station, id, operation);
-                };
-                _rows.Add(id, row);
-                JobsContainer.AddChild(row);
-            }
-        }
-
-        var sprites = _entities.System<SpriteSystem>();
-        for (var i = 0; i < jobs.Length; i++)
-        {
-            var job = jobs[i];
-            var texture = _prototypes.TryIndex(job.Icon, out var icon) ? sprites.Frame0(icon.Icon) : null;
-            _rows[job.ID].UpdateJob(job.LocalizedName, texture, slots[job.ID], i % 2 != 0);
-        }
-
-        EmptyState.Visible = jobs.Length == 0;
-        JobsScroll.Visible = jobs.Length > 0;
-    }
-
-    private bool InSelectedDepartment(ProtoId<JobPrototype> job)
-    {
-        return _selectedDepartment == null ||
-               _prototypes.TryIndex(_selectedDepartment.Value, out var department) && department.Roles.Contains(job);
-    }
-
-    private JobPrototype[] GetSortedJobs(ProtoId<JobWeightPrototype>? weights)
-    {
-        var jobs = _prototypes.EnumeratePrototypes<JobPrototype>()
-            .Where(job => InSelectedDepartment(job.ID))
-            .OrderBy(job => job.LocalizedName, StringComparer.CurrentCulture);
-
-        return JobUIComparer.TryCreate(_prototypes, weights, out var comparer)
-            ? jobs.OrderBy(job => job, comparer).ToArray()
-            : jobs.ToArray();
-    }
-
-    private void RefreshAddJobs(JobPrototype[] jobs)
-    {
-        AddJobSelector.Disabled = _selectedStation == null || jobs.Length == 0;
-        var ids = jobs.Select(job => (ProtoId<JobPrototype>) job.ID).ToArray();
-        if (_addableJobs.SequenceEqual(ids) && AddJobSelector.ItemCount > 0)
-            return;
-
-        _addableJobs = ids;
-        AddJobSelector.Clear();
-        AddJobSelector.AddItem(Loc.GetString("admin-station-job-slots-add"), 0);
-        AddJobSelector.SetItemDisabled(0, true);
-        for (var i = 0; i < jobs.Length; i++)
-        {
-            AddJobSelector.AddItem(jobs[i].LocalizedName, i + 1);
-        }
-
-        AddJobSelector.SelectId(0);
     }
 
     protected override void EnteredTree()
@@ -217,8 +74,151 @@ public sealed partial class StationJobSlotsWindow : FancyWindow
     private void OnPrototypesReloaded(PrototypesReloadedEventArgs args)
     {
         RefreshDepartments();
-        _addableJobs = [];
         AddJobSelector.Clear();
         RefreshJobs();
+    }
+
+    private void UpdateHeaderMargin() =>
+        HeaderLayout.Margin = new Thickness(0, 0, Math.Max(0, JobsScroll.Width - JobsContainer.Width), 0);
+
+    /// <summary>
+    /// Updates the available stations and job slots.
+    /// </summary>
+    public void UpdateStations(StationJobSlotsData[] stations)
+    {
+        _stations = stations;
+        RefreshStations();
+        RefreshJobs();
+    }
+
+    private void RefreshStations()
+    {
+        var stations = _stations.Select(station => (station.Station, station.Name)).ToArray();
+        if (_stationOptions.SequenceEqual(stations) && StationSelector.ItemCount > 0)
+            return;
+
+        _stationOptions = stations;
+        StationSelector.Clear();
+        StationSelector.Disabled = stations.Length == 0;
+
+        if (stations.Length == 0)
+        {
+            _station = null;
+            StationSelector.AddItem(Loc.GetString("admin-station-job-slots-no-stations"));
+            return;
+        }
+
+        foreach (var station in stations)
+        {
+            StationSelector.AddItem(station.Name);
+        }
+
+        var selected = Math.Max(0, Array.FindIndex(stations, station => station.Station == _station));
+        _station = stations[selected].Station;
+        StationSelector.SelectId(selected);
+    }
+
+    private void RefreshDepartments()
+    {
+        // Match the departments shown in job preferences.
+        var departments = _prototypes.EnumeratePrototypes<DepartmentPrototype>()
+            .Where(department => !department.EditorHidden)
+            .OrderBy(department => department, DepartmentUIComparer.Instance);
+
+        DepartmentSelector.Clear();
+        DepartmentSelector.AddItem(Loc.GetString("admin-station-job-slots-all-departments"));
+
+        foreach (var department in departments)
+        {
+            var id = DepartmentSelector.ItemCount;
+            DepartmentSelector.AddItem(Loc.GetString(department.Name));
+            DepartmentSelector.SetItemMetadata(id, (ProtoId<DepartmentPrototype>)department.ID);
+            if (department.ID == _department)
+                DepartmentSelector.SelectId(id);
+        }
+
+        _department = (ProtoId<DepartmentPrototype>?)DepartmentSelector.SelectedMetadata;
+    }
+
+    private void RefreshJobs()
+    {
+        var station = _stations.FirstOrDefault(station => station.Station == _station);
+        var slots = station?.Slots ?? [];
+        var jobs = station is null ? [] : GetSortedJobs(station.Weights);
+
+        UpdateRows(jobs.Where(job => slots.ContainsKey(job.ID)).ToArray(), slots);
+        RefreshAddJobs(jobs.Where(job => !slots.ContainsKey(job.ID)).ToArray());
+        EmptyState.Text = Loc.GetString(station is null
+            ? "admin-station-job-slots-no-stations"
+            : "admin-station-job-slots-no-jobs");
+    }
+
+    private void UpdateRows(JobPrototype[] jobs, Dictionary<ProtoId<JobPrototype>, int?> slots)
+    {
+        RefreshRows(jobs);
+        var sprites = _entities.System<SpriteSystem>();
+        for (var i = 0; i < jobs.Length; i++)
+        {
+            var job = jobs[i];
+            var texture = _prototypes.TryIndex(job.Icon, out var icon) ? sprites.Frame0(icon.Icon) : null;
+            _rows[i].Control.UpdateJob(job.LocalizedName, texture, slots[job.ID], i % 2 != 0);
+        }
+
+        EmptyState.Visible = jobs.Length == 0;
+        JobsScroll.Visible = jobs.Length > 0;
+    }
+
+    private void RefreshRows(JobPrototype[] jobs)
+    {
+        var ids = jobs.Select(job => (ProtoId<JobPrototype>)job.ID).ToArray();
+        if (_rows.Select(row => row.Job).SequenceEqual(ids))
+            return;
+
+        JobsContainer.RemoveAllChildren();
+        _rows.Clear();
+        foreach (var id in ids)
+        {
+            var row = new StationJobSlotRow();
+            row.OnSlotChange += operation =>
+            {
+                if (_station is { } station)
+                    OnSlotChange?.Invoke(station, id, operation);
+            };
+            _rows.Add((id, row));
+            JobsContainer.AddChild(row);
+        }
+    }
+
+    private JobPrototype[] GetSortedJobs(ProtoId<JobWeightPrototype>? weights)
+    {
+        var jobs = _prototypes.EnumeratePrototypes<JobPrototype>();
+        if (_department is { } id && _prototypes.TryIndex(id, out var department))
+            jobs = jobs.Where(job => department.Roles.Contains(job.ID));
+
+        if (!JobUIComparer.TryCreate(_prototypes, weights, out var comparer))
+            return jobs.OrderBy(job => job.LocalizedName, StringComparer.CurrentCulture).ToArray();
+
+        return jobs.OrderBy(job => job, comparer)
+            .ThenBy(job => job.LocalizedName, StringComparer.CurrentCulture)
+            .ToArray();
+    }
+
+    private void RefreshAddJobs(JobPrototype[] jobs)
+    {
+        AddJobSelector.Disabled = _station is null || jobs.Length == 0;
+        var ids = jobs.Select(job => (ProtoId<JobPrototype>)job.ID).ToArray();
+        if (_addableJobs.SequenceEqual(ids) && AddJobSelector.ItemCount > 0)
+            return;
+
+        _addableJobs = ids;
+        AddJobSelector.Clear();
+        AddJobSelector.AddItem(Loc.GetString("admin-station-job-slots-add"));
+        AddJobSelector.SetItemDisabled(0, true);
+        foreach (var job in jobs)
+        {
+            var id = AddJobSelector.ItemCount;
+            AddJobSelector.AddItem(job.LocalizedName);
+            AddJobSelector.SetItemMetadata(id, (ProtoId<JobPrototype>)job.ID);
+        }
     }
 }
