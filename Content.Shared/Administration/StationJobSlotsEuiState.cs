@@ -34,7 +34,7 @@ public enum StationJobSlotOperation : byte
     Decrease,
     MakeUnlimited,
 
-    // Restore the free-slot count saved by this EUI, or zero if none was saved....
+    // Restore the count saved by this EUI, or zero if none was saved.
     MakeLimited,
 
     // A newly added job starts with one free slot.

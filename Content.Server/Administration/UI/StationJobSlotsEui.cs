@@ -19,7 +19,7 @@ public sealed partial class StationJobSlotsEui(ServerStationJobsSystem stationJo
     [Dependency] private IPrototypeManager _prototypes = default!;
     [Dependency] private IAdminLogManager _logs = default!;
 
-    // Remember the count so turning off unlimited slots restores -> previous value
+    // Remember the count before enabling unlimited slots.
     private readonly Dictionary<(EntityUid Station, ProtoId<JobPrototype> Job), int> _limitedSlots = [];
 
     private bool CanEdit => _admins.HasAdminFlag(Player, AdminFlags.VarEdit);
@@ -37,6 +37,12 @@ public sealed partial class StationJobSlotsEui(ServerStationJobsSystem stationJo
         _admins.OnPermsChanged -= OnPermsChanged;
         stationJobs.JobsChanged -= StateDirty;
         base.Closed();
+    }
+
+    private void OnPermsChanged(AdminPermsChangedEventArgs args)
+    {
+        if (args.Player == Player && !CanEdit)
+            Close();
     }
 
     public override StationJobSlotsEuiState GetNewState()
@@ -130,11 +136,5 @@ public sealed partial class StationJobSlotsEui(ServerStationJobsSystem stationJo
             LogImpact.Low, // mb medium
             $"{Player} changed job {change.Job} on {station} " +
             $"using {change.Operation}: {previous} -> {updated?.ToString() ?? "unlimited"}");
-    }
-
-    private void OnPermsChanged(AdminPermsChangedEventArgs args)
-    {
-        if (args.Player == Player && !CanEdit)
-            Close();
     }
 }

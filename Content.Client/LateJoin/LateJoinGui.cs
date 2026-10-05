@@ -301,6 +301,7 @@ namespace Content.Client.LateJoin
             }
         }
 
+        // TODO: Recheck job access and show added jobs without reopening the window!!!
         private void JobsAvailableUpdated(IReadOnlyDictionary<NetEntity, Dictionary<ProtoId<JobPrototype>, int?>> updatedJobs)
         {
             foreach (var stationEntries in updatedJobs)
