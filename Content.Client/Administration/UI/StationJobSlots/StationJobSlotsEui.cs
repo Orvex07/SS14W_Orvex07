@@ -28,8 +28,8 @@ public sealed class StationJobSlotsEui : BaseEui
         _window.Close();
     }
 
-    private void OnSlotChange(NetEntity station, ProtoId<JobPrototype> job, StationJobSlotOperation operation) =>
-        SendMessage(new StationJobSlotsChangeMessage(station, job, operation));
+    private void OnSlotChange(NetEntity station, ProtoId<JobPrototype> job, StationJobSlotOperation operation, int? slots) =>
+        SendMessage(new StationJobSlotsChangeMessage(station, job, operation, slots));
 
     private void OnWindowClosed() =>
         SendMessage(new CloseEuiMessage());

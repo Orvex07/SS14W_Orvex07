@@ -1,4 +1,5 @@
 <ui:FancyWindow xmlns="https://spacestation14.io"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
                 xmlns:ui="clr-namespace:Content.Client.UserInterface.Controls"
                 xmlns:jobs="clr-namespace:Content.Client.Administration.UI.StationJobSlots"
                 Title="{Loc admin-station-job-slots-window-title}"
@@ -19,7 +20,15 @@
 
         <PanelContainer StyleClasses="PanelInsetDark" VerticalExpand="True">
             <BoxContainer Orientation="Vertical" Margin="2">
-                <jobs:StationJobSlotRow Name="HeaderLayout" />
+                <PanelContainer Name="HeaderLayout" StyleClasses="PanelLight" MinHeight="32">
+                    <BoxContainer Orientation="Horizontal" Margin="8 2" SeparationOverride="8">
+                        <Label Text="{Loc admin-station-job-slots-job}" HorizontalExpand="True" StyleClasses="LabelKeyText" />
+                        <Label Text="{Loc admin-station-job-slots-slots}" Align="Center" StyleClasses="LabelKeyText"
+                               SetWidth="{x:Static jobs:StationJobSlotRow.SlotsWidth}" />
+                        <Label Text="{Loc admin-station-job-slots-unlimited}" Align="Center" StyleClasses="LabelKeyText"
+                               SetWidth="{x:Static jobs:StationJobSlotRow.UnlimitedWidth}" />
+                    </BoxContainer>
+                </PanelContainer>
                 <Label Name="EmptyState" Text="{Loc admin-station-job-slots-loading}"
                        HorizontalAlignment="Center" VerticalAlignment="Center" VerticalExpand="True"
                        StyleClasses="LabelWeak" />

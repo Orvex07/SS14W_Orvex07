@@ -10,67 +10,111 @@ namespace Content.Client.Administration.UI.StationJobSlots;
 [GenerateTypedNameReferences]
 public sealed partial class StationJobSlotRow : PanelContainer
 {
-    public event Action<StationJobSlotOperation>? OnSlotChange;
+    public const float SlotsWidth = 176;
+    public const float UnlimitedWidth = 56;
+
+    public event Action<StationJobSlotOperation, int?>? OnSlotChange;
+
+    private int? _slots;
+    private bool _editing;
+    private bool _modified;
+    private bool _toggling;
 
     public StationJobSlotRow()
     {
         RobustXamlLoader.Load(this);
-        DecreaseButton.OnPressed += _ => OnSlotChange?.Invoke(StationJobSlotOperation.Decrease);
-        IncreaseButton.OnPressed += _ => OnSlotChange?.Invoke(StationJobSlotOperation.Increase);
+        SlotCount.IsValid = value => value >= 0;
+        SlotCount.InitDefaultButtons();
+        SlotCount.LineEditControl.IsValid = text => text.Length == 0 || int.TryParse(text, out var value) && value >= 0;
+        SlotCount.LineEditControl.OnFocusEnter += _ => _editing = true;
+        SlotCount.LineEditControl.OnTextChanged += _ => _editing = _modified = true;
+        SlotCount.LineEditControl.OnTextEntered += _ => CommitEdit();
+        SlotCount.LineEditControl.OnFocusExit += _ => CommitEdit();
+        SlotCount.ValueChanged += args =>
+        {
+            if (SlotCount.LineEditDisabled || args.Value < 0 || args.Value != SlotCount.Value)
+                return;
+
+            _editing = _modified = true;
+            if (!SlotCount.LineEditControl.HasKeyboardFocus())
+                CommitEdit();
+        };
 
         UnlimitedButton.OnToggled += args =>
         {
-            UpdateUnlimitedStyle();
-            OnSlotChange?.Invoke(args.Pressed
-                ? StationJobSlotOperation.MakeUnlimited
-                : StationJobSlotOperation.MakeLimited);
+            _editing = false;
+            _toggling = true;
+            UpdateControls();
+            OnSlotChange?.Invoke(args.Pressed ? StationJobSlotOperation.Set : StationJobSlotOperation.Restore, null);
+        };
+        UnlimitedButton.OnMouseExited += _ =>
+        {
+            if (!_toggling)
+                return;
+
+            _toggling = false;
+            UpdateSlots(_slots);
         };
     }
 
-    /// <summary>
-    /// Displays this row as a table header.
-    /// </summary>
-    public void SetHeader()
+    protected override void ExitedTree()
     {
-        SetOnlyStyleClass(StyleClass.PanelLight);
-        JobIcon.Visible = false;
-        JobName.Text = Loc.GetString("admin-station-job-slots-job");
-        JobName.AddStyleClass(StyleClass.LabelKeyText);
-        SlotPanel.RemoveStyleClass(StyleClass.PanelDark);
-        SlotCount.Text = Loc.GetString("admin-station-job-slots-slots");
-        SlotCount.AddStyleClass(StyleClass.LabelKeyText);
-        DecreaseButton.Visible = false;
-        IncreaseButton.Visible = false;
-        UnlimitedButton.Visible = false;
-        UnlimitedHeading.Visible = true;
+        CancelEdit();
+        base.ExitedTree();
     }
 
-    /// <summary>
-    /// Updates the job's name, icon, and slot count...
-    /// </summary>
-    public void UpdateJob(string name, Texture? icon, int? slots, bool alternate)
+    public void UpdateJob(string name, Texture? icon, bool alternate)
     {
         SetOnlyStyleClass(alternate ? StyleClass.PanelLight : StyleClass.PanelDark);
         JobName.Text = name;
         JobName.ToolTip = name;
         JobIcon.Texture = icon;
-        SlotCount.Text = slots?.ToString() ?? Loc.GetString("admin-station-job-slots-unlimited");
-        DecreaseButton.Disabled = slots is null or <= 0;
-        IncreaseButton.Disabled = slots is null or int.MaxValue;
-        UnlimitedButton.Pressed = slots is null;
-        UpdateUnlimitedStyle();
     }
 
-    private void UpdateUnlimitedStyle()
+    public void UpdateSlots(int? slots)
     {
-        if (UnlimitedButton.Pressed)
-            UnlimitedButton.AddStyleClass(StyleClass.Positive);
+        _slots = slots;
+        if (_editing)
+            return;
 
-        else
-            UnlimitedButton.RemoveStyleClass(StyleClass.Positive);
+        if (!_toggling)
+            UnlimitedButton.Pressed = slots is null;
+        UpdateControls();
+    }
 
-        UnlimitedButton.ToolTip = Loc.GetString(UnlimitedButton.Pressed
+    private void UpdateControls()
+    {
+        var unlimited = UnlimitedButton.Pressed;
+        if (unlimited)
+            CancelEdit();
+
+        SlotCount.LineEditDisabled = unlimited;
+        SlotCount.LineEditControl.CanKeyboardFocus = !unlimited;
+        SlotCount.SetButtonDisabled(unlimited);
+        SlotCount.OverrideValue(_slots ?? 0);
+        UnlimitedButton.ToolTip = Loc.GetString(unlimited
             ? "admin-station-job-slots-limited-tooltip"
             : "admin-station-job-slots-unlimited-tooltip");
+    }
+
+    private void CommitEdit()
+    {
+        if (!_editing)
+            return;
+
+        _editing = false;
+
+        if (_modified && !SlotCount.LineEditDisabled &&
+            int.TryParse(SlotCount.LineEditControl.Text, out var value) && value >= 0)
+            OnSlotChange?.Invoke(StationJobSlotOperation.Set, value);
+        else
+            UpdateSlots(_slots);
+        _modified = false;
+    }
+
+    private void CancelEdit()
+    {
+        _editing = _modified = false;
+        SlotCount.LineEditControl.ReleaseKeyboardFocus();
     }
 }

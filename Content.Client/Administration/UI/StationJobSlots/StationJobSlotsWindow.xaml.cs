@@ -16,26 +16,23 @@ public sealed partial class StationJobSlotsWindow : FancyWindow
     [Dependency] private IPrototypeManager _prototypes = default!;
     [Dependency] private IEntityManager _entities = default!;
 
-    public event Action<NetEntity, ProtoId<JobPrototype>, StationJobSlotOperation>? OnSlotChange;
+    public event Action<NetEntity, ProtoId<JobPrototype>, StationJobSlotOperation, int?>? OnSlotChange;
 
     private StationJobSlotsData[] _stations = [];
     private NetEntity? _station;
     private ProtoId<DepartmentPrototype>? _department;
-    private (NetEntity Station, string Name)[] _stationOptions = [];
-    private ProtoId<JobPrototype>[] _addableJobs = [];
     private readonly List<(ProtoId<JobPrototype> Job, StationJobSlotRow Control)> _rows = [];
 
     public StationJobSlotsWindow()
     {
         RobustXamlLoader.Load(this);
         IoCManager.InjectDependencies(this);
-        HeaderLayout.SetHeader();
         DepartmentSelector.OptionStyleClasses.Add(StyleClass.ButtonOpenBoth);
 
         StationSelector.OnItemSelected += args =>
         {
             StationSelector.SelectId(args.Id);
-            _station = _stationOptions[args.Id].Station;
+            _station = _stations[args.Id].Station;
             RefreshJobs();
         };
 
@@ -50,7 +47,7 @@ public sealed partial class StationJobSlotsWindow : FancyWindow
         {
             var item = AddJobSelector.GetItemMetadata(AddJobSelector.GetIdx(args.Id));
             if (_station is { } station && item is ProtoId<JobPrototype> job)
-                OnSlotChange?.Invoke(station, job, StationJobSlotOperation.Add);
+                OnSlotChange?.Invoke(station, job, StationJobSlotOperation.Add, null);
         };
 
         JobsContainer.OnResized += UpdateHeaderMargin;
@@ -74,53 +71,61 @@ public sealed partial class StationJobSlotsWindow : FancyWindow
     private void OnPrototypesReloaded(PrototypesReloadedEventArgs args)
     {
         RefreshDepartments();
-        AddJobSelector.Clear();
         RefreshJobs();
     }
 
     private void UpdateHeaderMargin() =>
         HeaderLayout.Margin = new Thickness(0, 0, Math.Max(0, JobsScroll.Width - JobsContainer.Width), 0);
 
-    /// <summary>
-    /// Updates the available stations and job slots.
-    /// </summary>
     public void UpdateStations(StationJobSlotsData[] stations)
     {
+        var previousStations = _stations;
+        var previous = previousStations.FirstOrDefault(station => station.Station == _station);
         _stations = stations;
-        RefreshStations();
-        RefreshJobs();
+        RefreshStations(previousStations);
+        var current = _stations.FirstOrDefault(station => station.Station == _station);
+        if (previous is null || current is null || previous.Station != current.Station ||
+            previous.Weights != current.Weights || previous.Slots.Count != current.Slots.Count ||
+            previous.Slots.Keys.Any(job => !current.Slots.ContainsKey(job)))
+        {
+            RefreshJobs();
+            return;
+        }
+
+        foreach (var (job, row) in _rows)
+        {
+            row.UpdateSlots(current.Slots[job]);
+        }
     }
 
-    private void RefreshStations()
+    private void RefreshStations(StationJobSlotsData[] previous)
     {
-        var stations = _stations.Select(station => (station.Station, station.Name)).ToArray();
-        if (_stationOptions.SequenceEqual(stations) && StationSelector.ItemCount > 0)
+        if (StationSelector.ItemCount > 0 && _stations.Select(station => (station.Station, station.Name))
+            .SequenceEqual(previous.Select(station => (station.Station, station.Name))))
             return;
 
-        _stationOptions = stations;
         StationSelector.Clear();
-        StationSelector.Disabled = stations.Length == 0;
+        StationSelector.Disabled = _stations.Length == 0;
 
-        if (stations.Length == 0)
+        if (_stations.Length == 0)
         {
             _station = null;
             StationSelector.AddItem(Loc.GetString("admin-station-job-slots-no-stations"));
             return;
         }
 
-        foreach (var station in stations)
+        foreach (var station in _stations)
         {
             StationSelector.AddItem(station.Name);
         }
 
-        var selected = Math.Max(0, Array.FindIndex(stations, station => station.Station == _station));
-        _station = stations[selected].Station;
+        var selected = Math.Max(0, Array.FindIndex(_stations, station => station.Station == _station));
+        _station = _stations[selected].Station;
         StationSelector.SelectId(selected);
     }
 
     private void RefreshDepartments()
     {
-        // Match the departments shown in job preferences.
         var departments = _prototypes.EnumeratePrototypes<DepartmentPrototype>()
             .Where(department => !department.EditorHidden)
             .OrderBy(department => department, DepartmentUIComparer.Instance);
@@ -155,38 +160,28 @@ public sealed partial class StationJobSlotsWindow : FancyWindow
 
     private void UpdateRows(JobPrototype[] jobs, Dictionary<ProtoId<JobPrototype>, int?> slots)
     {
-        RefreshRows(jobs);
+        JobsContainer.RemoveAllChildren();
+        _rows.Clear();
         var sprites = _entities.System<SpriteSystem>();
+        var station = _station;
         for (var i = 0; i < jobs.Length; i++)
         {
             var job = jobs[i];
             var texture = _prototypes.TryIndex(job.Icon, out var icon) ? sprites.Frame0(icon.Icon) : null;
-            _rows[i].Control.UpdateJob(job.LocalizedName, texture, slots[job.ID], i % 2 != 0);
+            var row = new StationJobSlotRow();
+            row.UpdateJob(job.LocalizedName, texture, i % 2 != 0);
+            row.UpdateSlots(slots[job.ID]);
+            row.OnSlotChange += (operation, value) =>
+            {
+                if (station is { } selected)
+                    OnSlotChange?.Invoke(selected, job.ID, operation, value);
+            };
+            _rows.Add((job.ID, row));
+            JobsContainer.AddChild(row);
         }
 
         EmptyState.Visible = jobs.Length == 0;
         JobsScroll.Visible = jobs.Length > 0;
-    }
-
-    private void RefreshRows(JobPrototype[] jobs)
-    {
-        var ids = jobs.Select(job => (ProtoId<JobPrototype>)job.ID).ToArray();
-        if (_rows.Select(row => row.Job).SequenceEqual(ids))
-            return;
-
-        JobsContainer.RemoveAllChildren();
-        _rows.Clear();
-        foreach (var id in ids)
-        {
-            var row = new StationJobSlotRow();
-            row.OnSlotChange += operation =>
-            {
-                if (_station is { } station)
-                    OnSlotChange?.Invoke(station, id, operation);
-            };
-            _rows.Add((id, row));
-            JobsContainer.AddChild(row);
-        }
     }
 
     private JobPrototype[] GetSortedJobs(ProtoId<JobWeightPrototype>? weights)
@@ -206,11 +201,6 @@ public sealed partial class StationJobSlotsWindow : FancyWindow
     private void RefreshAddJobs(JobPrototype[] jobs)
     {
         AddJobSelector.Disabled = _station is null || jobs.Length == 0;
-        var ids = jobs.Select(job => (ProtoId<JobPrototype>)job.ID).ToArray();
-        if (_addableJobs.SequenceEqual(ids) && AddJobSelector.ItemCount > 0)
-            return;
-
-        _addableJobs = ids;
         AddJobSelector.Clear();
         AddJobSelector.AddItem(Loc.GetString("admin-station-job-slots-add"));
         AddJobSelector.SetItemDisabled(0, true);

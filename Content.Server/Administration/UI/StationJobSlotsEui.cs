@@ -19,7 +19,6 @@ public sealed partial class StationJobSlotsEui(ServerStationJobsSystem stationJo
     [Dependency] private IPrototypeManager _prototypes = default!;
     [Dependency] private IAdminLogManager _logs = default!;
 
-    // Remember the count before enabling unlimited slots.
     private readonly Dictionary<(EntityUid Station, ProtoId<JobPrototype> Job), int> _limitedSlots = [];
 
     private bool CanEdit => _admins.HasAdminFlag(Player, AdminFlags.VarEdit);
@@ -73,7 +72,6 @@ public sealed partial class StationJobSlotsEui(ServerStationJobsSystem stationJo
         }
 
         ChangeSlots(change);
-        // Also reset client's controls when a request is rejected
         StateDirty();
     }
 
@@ -92,32 +90,29 @@ public sealed partial class StationJobSlotsEui(ServerStationJobsSystem stationJo
             case StationJobSlotOperation.Add when !exists:
                 updated = 1;
                 break;
-            case StationJobSlotOperation.Increase when current is >= 0 and < int.MaxValue:
-                updated = current + 1;
+            case StationJobSlotOperation.Set when exists && change.Slots is null or >= 0:
+                updated = change.Slots;
                 break;
-            case StationJobSlotOperation.Decrease when current is > 0:
-                updated = current - 1;
-                break;
-            case StationJobSlotOperation.MakeUnlimited when current is { } limited:
-                _limitedSlots[key] = limited;
-                updated = null;
-                break;
-            case StationJobSlotOperation.MakeLimited when exists && current is null:
+            case StationJobSlotOperation.Restore when exists && current is null:
                 updated = _limitedSlots.GetValueOrDefault(key);
                 break;
             default:
                 return;
         }
 
+        if (exists && updated == current)
+            return;
+
         if (updated is null)
         {
+            if (current is { } limited)
+                _limitedSlots[key] = limited;
             stationJobs.MakeJobUnlimited(station.Value, change.Job, jobs);
         }
         else
         {
-            // Prevent the station's total slot count from overflowing.
             var total = (long)jobs.TotalJobs - (current ?? 0) + updated.Value;
-            if (total > int.MaxValue)
+            if (updated < 0 || total is < 0 or > int.MaxValue)
                 return;
 
             if (!stationJobs.TrySetJobSlot(station.Value,
@@ -133,7 +128,7 @@ public sealed partial class StationJobSlotsEui(ServerStationJobsSystem stationJo
         var previous = exists ? current?.ToString() ?? "unlimited" : "absent";
 
         _logs.Add(LogType.AdminCommands,
-            LogImpact.Low, // mb medium
+            LogImpact.Low,
             $"{Player} changed job {change.Job} on {station} " +
             $"using {change.Operation}: {previous} -> {updated?.ToString() ?? "unlimited"}");
     }
