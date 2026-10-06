@@ -85,6 +85,7 @@ public sealed partial class StationJobSlotsEui(ServerStationJobsSystem stationJo
         var key = (station.Value, change.Job);
         var exists = stationJobs.TryGetJobSlot(station.Value, change.Job, out var current, jobs);
         int? updated;
+
         switch (change.Operation)
         {
             case StationJobSlotOperation.Add when !exists:
@@ -96,17 +97,29 @@ public sealed partial class StationJobSlotsEui(ServerStationJobsSystem stationJo
             case StationJobSlotOperation.Restore when exists && current is null:
                 updated = _limitedSlots.GetValueOrDefault(key);
                 break;
+            case StationJobSlotOperation.Remove when exists:
+                updated = null;
+                break;
             default:
                 return;
         }
 
-        if (exists && updated == current)
+        if (change.Operation == StationJobSlotOperation.Remove)
+        {
+            if (!stationJobs.TryRemoveJobSlot(station.Value, change.Job, jobs))
+                return;
+
+            _limitedSlots.Remove(key);
+        }
+
+        else if (exists && updated == current)
             return;
 
-        if (updated is null)
+        else if (updated is null)
         {
             if (current is { } limited)
                 _limitedSlots[key] = limited;
+
             stationJobs.MakeJobUnlimited(station.Value, change.Job, jobs);
         }
         else
@@ -126,10 +139,13 @@ public sealed partial class StationJobSlotsEui(ServerStationJobsSystem stationJo
         }
 
         var previous = exists ? current?.ToString() ?? "unlimited" : "absent";
+        var next = change.Operation == StationJobSlotOperation.Remove
+            ? "absent"
+            : updated?.ToString() ?? "unlimited";
 
         _logs.Add(LogType.AdminCommands,
             LogImpact.Low,
             $"{Player} changed job {change.Job} on {station} " +
-            $"using {change.Operation}: {previous} -> {updated?.ToString() ?? "unlimited"}");
+            $"using {change.Operation}: {previous} -> {next}");
     }
 }

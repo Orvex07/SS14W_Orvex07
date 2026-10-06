@@ -26,7 +26,7 @@
                         <Label Text="{Loc admin-station-job-slots-slots}" Align="Center" StyleClasses="LabelKeyText"
                                SetWidth="{x:Static jobs:StationJobSlotRow.SlotsWidth}" />
                         <Label Text="{Loc admin-station-job-slots-unlimited}" Align="Center" StyleClasses="LabelKeyText"
-                               SetWidth="{x:Static jobs:StationJobSlotRow.UnlimitedWidth}" />
+                               SetWidth="{x:Static jobs:StationJobSlotRow.ButtonWidth}" />
                     </BoxContainer>
                 </PanelContainer>
                 <Label Name="EmptyState" Text="{Loc admin-station-job-slots-loading}"

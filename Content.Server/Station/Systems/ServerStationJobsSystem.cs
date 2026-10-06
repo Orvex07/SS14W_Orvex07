@@ -304,6 +304,27 @@ public sealed partial class ServerStationJobsSystem : StationJobsSystem
         UpdateJobsAvailable();
     }
 
+    /// <summary>
+    /// Removes the given job from the station's available jobs.
+    /// </summary>
+    /// <param name="station">Station to remove the job from.</param>
+    /// <param name="jobPrototypeId">Job prototype ID to remove.</param>
+    /// <param name="stationJobs">Resolve pattern, station jobs component of the station.</param>
+    /// <returns>True if the job was removed, false if it did not exist.</returns>
+    /// <exception cref="ArgumentException">Thrown when the given station is not a station.</exception>
+    public bool TryRemoveJobSlot(EntityUid station, string jobPrototypeId, StationJobsComponent? stationJobs = null)
+    {
+        if (!Resolve(station, ref stationJobs))
+            throw new ArgumentException("Tried to use a non-station entity as a station!", nameof(station));
+
+        if (!stationJobs.JobList.Remove(jobPrototypeId, out var slots))
+            return false;
+
+        stationJobs.TotalJobs -= slots ?? 0;
+        UpdateJobsAvailable();
+        return true;
+    }
+
     /// <inheritdoc cref="IsJobUnlimited(EntityUid,string,StationJobsComponent?)"/>
     /// <param name="station">Station to check.</param>
     /// <param name="job">Job to check.</param>

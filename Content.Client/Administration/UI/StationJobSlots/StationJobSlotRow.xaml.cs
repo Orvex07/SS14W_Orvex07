@@ -10,8 +10,8 @@ namespace Content.Client.Administration.UI.StationJobSlots;
 [GenerateTypedNameReferences]
 public sealed partial class StationJobSlotRow : PanelContainer
 {
-    public const float SlotsWidth = 176;
-    public const float UnlimitedWidth = 56;
+    public const float SlotsWidth = 120;
+    public const float ButtonWidth = 32;
 
     public event Action<StationJobSlotOperation, int?>? OnSlotChange;
 
@@ -28,8 +28,8 @@ public sealed partial class StationJobSlotRow : PanelContainer
         SlotCount.LineEditControl.IsValid = text => text.Length == 0 || int.TryParse(text, out var value) && value >= 0;
         SlotCount.LineEditControl.OnFocusEnter += _ => _editing = true;
         SlotCount.LineEditControl.OnTextChanged += _ => _editing = _modified = true;
-        SlotCount.LineEditControl.OnTextEntered += _ => CommitEdit();
-        SlotCount.LineEditControl.OnFocusExit += _ => CommitEdit();
+        SlotCount.LineEditControl.OnTextEntered += _ => ApplySlotCount();
+        SlotCount.LineEditControl.OnFocusExit += _ => ApplySlotCount();
         SlotCount.ValueChanged += args =>
         {
             if (SlotCount.LineEditDisabled || args.Value < 0 || args.Value != SlotCount.Value)
@@ -37,7 +37,7 @@ public sealed partial class StationJobSlotRow : PanelContainer
 
             _editing = _modified = true;
             if (!SlotCount.LineEditControl.HasKeyboardFocus())
-                CommitEdit();
+                ApplySlotCount();
         };
 
         UnlimitedButton.OnToggled += args =>
@@ -54,6 +54,11 @@ public sealed partial class StationJobSlotRow : PanelContainer
 
             _toggling = false;
             UpdateSlots(_slots);
+        };
+        RemoveButton.OnPressed += _ =>
+        {
+            CancelEdit();
+            OnSlotChange?.Invoke(StationJobSlotOperation.Remove, null);
         };
     }
 
@@ -97,7 +102,7 @@ public sealed partial class StationJobSlotRow : PanelContainer
             : "admin-station-job-slots-unlimited-tooltip");
     }
 
-    private void CommitEdit()
+    private void ApplySlotCount()
     {
         if (!_editing)
             return;

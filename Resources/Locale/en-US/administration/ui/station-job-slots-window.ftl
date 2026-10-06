@@ -4,6 +4,7 @@ admin-station-job-slots-department = Department:
 admin-station-job-slots-all-departments = All departments
 admin-station-job-slots-add = + Add job…
 admin-station-job-slots-add-tooltip = Add a job with one free slot.
+admin-station-job-slots-remove-tooltip = Remove this job from the station.
 admin-station-job-slots-job = Job
 admin-station-job-slots-slots = Free slots
 admin-station-job-slots-unlimited = ∞

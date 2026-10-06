@@ -30,6 +30,7 @@ public enum StationJobSlotOperation : byte
     Set,
     Restore,
     Add,
+    Remove,
 }
 
 [Serializable, NetSerializable]
