@@ -1,0 +1,15 @@
+<PanelContainer xmlns="https://spacestation14.io"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:jobs="clr-namespace:Content.Client.Administration.UI.StationJobSlots"
+                MinHeight="32">
+    <BoxContainer Orientation="Horizontal" Margin="8 2" SeparationOverride="8">
+        <TextureButton Name="RemoveButton" StyleClasses="CrossButtonRed" Scale="0.75 0.75"
+                       VerticalAlignment="Center" ToolTip="{Loc admin-station-job-slots-remove-tooltip}" />
+        <TextureRect Name="JobIcon" SetSize="24 24" Stretch="KeepAspectCentered"
+                     VerticalAlignment="Center" />
+        <Label Name="JobName" HorizontalExpand="True" ClipText="True" />
+        <SpinBox Name="SlotCount" SetWidth="{x:Static jobs:StationJobSlotRow.SlotsWidth}" />
+        <Button Name="UnlimitedButton" SetWidth="{x:Static jobs:StationJobSlotRow.ButtonWidth}"
+                Text="{Loc admin-station-job-slots-unlimited}" ToggleMode="True" />
+    </BoxContainer>
+</PanelContainer>

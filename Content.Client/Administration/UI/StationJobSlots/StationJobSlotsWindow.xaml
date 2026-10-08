@@ -1,0 +1,41 @@
+<ui:FancyWindow xmlns="https://spacestation14.io"
+                xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                xmlns:ui="clr-namespace:Content.Client.UserInterface.Controls"
+                xmlns:jobs="clr-namespace:Content.Client.Administration.UI.StationJobSlots"
+                Title="{Loc admin-station-job-slots-window-title}"
+                MinWidth="500"
+                MinHeight="400"
+                SetSize="560 650">
+    <BoxContainer Orientation="Vertical" Margin="8" SeparationOverride="8">
+        <BoxContainer Orientation="Horizontal" SeparationOverride="8">
+            <Label Text="{Loc admin-station-job-slots-station}" />
+            <OptionButton Name="StationSelector" HorizontalExpand="True" Filterable="True" Disabled="True" />
+        </BoxContainer>
+        <BoxContainer Orientation="Horizontal" SeparationOverride="8">
+            <OptionButton Name="AddJobSelector" Filterable="True" HideTriangle="True"
+                          ToolTip="{Loc admin-station-job-slots-add-tooltip}" Disabled="True" />
+            <Label Text="{Loc admin-station-job-slots-department}" />
+            <OptionButton Name="DepartmentSelector" HorizontalExpand="True" Filterable="True" />
+        </BoxContainer>
+
+        <PanelContainer StyleClasses="PanelInsetDark" VerticalExpand="True">
+            <BoxContainer Orientation="Vertical" Margin="2">
+                <PanelContainer Name="HeaderLayout" StyleClasses="PanelLight" MinHeight="32">
+                    <BoxContainer Orientation="Horizontal" Margin="8 2" SeparationOverride="8">
+                        <Label Text="{Loc admin-station-job-slots-job}" HorizontalExpand="True" StyleClasses="LabelKeyText" />
+                        <Label Text="{Loc admin-station-job-slots-slots}" Align="Center" StyleClasses="LabelKeyText"
+                               SetWidth="{x:Static jobs:StationJobSlotRow.SlotsWidth}" />
+                        <Label Text="{Loc admin-station-job-slots-unlimited}" Align="Center" StyleClasses="LabelKeyText"
+                               SetWidth="{x:Static jobs:StationJobSlotRow.ButtonWidth}" />
+                    </BoxContainer>
+                </PanelContainer>
+                <Label Name="EmptyState" Text="{Loc admin-station-job-slots-loading}"
+                       HorizontalAlignment="Center" VerticalAlignment="Center" VerticalExpand="True"
+                       StyleClasses="LabelWeak" />
+                <ScrollContainer Name="JobsScroll" VerticalExpand="True" Visible="False" HScrollEnabled="False">
+                    <BoxContainer Name="JobsContainer" Orientation="Vertical" SeparationOverride="1" />
+                </ScrollContainer>
+            </BoxContainer>
+        </PanelContainer>
+    </BoxContainer>
+</ui:FancyWindow>
